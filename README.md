@@ -2,6 +2,49 @@
 
 ![AUR license](https://img.shields.io/aur/license/bsptab-git) ![AUR version](https://img.shields.io/aur/version/bsptab-git)
 
+-----
+
+Personal fork of [the original](https://github.com/albertored11/bsptab) bsptab
+with some changes made to make it fit my use cases better. If I don't make it
+incompatible with the original, I'll probably open a pull request or something eventually.
+
+I wrote my changes in `tabc-simple`, a simplified version of tabc without
+autoattaching or the xdotool key thing.  I made this instead of making
+changes in tabc because it's easier with those features just removed since
+working with `tabbed` can be a little buggy. Might think about porting my
+changes over to tabc later.
+
+List of changes made:
+ - Remove automatic autoattach. It's a neat feature, but I don't want it, and I'd rather not have to disable it on every new tabbed container or deal with potential buggyness/slowdown from that.
+ - Remove the weird xdotool key workaround for tab order. It noticably slows it down and adds jank. This *does* mean that the ordering changes sometimes (i.e. when merging windows), which doesn't really bother me.
+ - `merge` combines two tabbed containers together completely.
+ - `explode` detaches all windows from a tabbed container.
+
+My `sxhkdrc` lines:
+```
+# create new "T"abbed contained on current window
+super + t; t
+    tabc-simple create $(bspc query -N -n focused)
+
+# "R"emove current window from tabbed container
+super + t; r
+    tabc-simple detach $(bspc query -N -n focused)
+
+# "R"emove all windows from tabbed container (explode)
+super + t; shift + r
+    tabc-simple explode $(bspc query -N -n focused)
+
+# attach current window in target tabbed container (or make one if needed)
+super + t; {h,j,k,l}
+    tabc-simple attach $(bspc query -N -n focused) $(bspc query -N -n {west,south,north,east})
+
+# merge current tabbed/window with targeted tabbed/window
+super + t; shift + {h,j,k,l}
+    tabc-simple merge $(bspc query -N -n focused) $(bspc query -N -n {west,south,north,east})
+```
+
+-----
+
 bsptab is a collection of bash scripts for integrating [tabbed](https://tools.suckless.org/tabbed/),
 a tool from [suckless](https://suckless.org/) to create tabbed containers in X environments, into
 [bspwm](https://github.com/baskerville/bspwm), a tiling window manager based on binary space

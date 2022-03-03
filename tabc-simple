@@ -1,0 +1,435 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2086,SC2048
+#
+# bsptab: Suckless' tabbed integration into bspwm.
+# https://github.com/albertored11/bsptab
+#
+# MIT License
+#
+# Copyright (c) 2021-2022 Alberto Redondo
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+
+program_name="$(basename "$0")"
+
+usage() {
+printf "%s" "\
+usage: $program_name <command>
+
+commands:
+    create <wid>            create new tabbed container and add window <wid>.
+    attach <wid0> <wid1>    attach window <wid0> to tabbed container <wid1> (if
+                            it isn't one, create it first).
+    merge <wid0> <wid1>     like attach, but it completely merges two tabbed
+                            instances (creates one if needed).
+    detach <wid>            detach active window from tabbed container <wid>.
+    explode <wid>           remove all windows from tabbed contained <wid>.
+    printclass <wid>        print class of window <wid>.
+"
+
+exit 1
+}
+
+trim_all() {
+    set -f
+    set -- $*
+    printf '%s\n' "$*"
+    set +f
+}
+
+split() {
+    IFS=$'\n' read -d "" -ra arr <<< "${1//$2/$'\n'}"
+    printf '%s\n' "${arr[$3]}"
+}
+
+trim_quotes() {
+    : "${1//\'}"
+    printf '%s\n' "${_//\"}"
+}
+
+head() {
+    mapfile -tn "$1" line < "$2"
+    printf '%s\n' "${line[@]}"
+}
+
+get_root_wid() {
+    awk '/Window id:/{print $4}' <(xwininfo -root)
+}
+
+get_children() {
+    id=$1
+
+    awk '$1 ~ /0x.*/{print $1}' <(xwininfo -id "$id" -children)
+}
+
+get_children_no() {
+    id=$1
+
+    awk '$2 ~ /child|children/{print $1}' <(xwininfo -id "$id" -children)
+}
+
+get_class() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! class="$(xprop -id "$id" 8s '\t$0' WM_CLASS 2> /dev/null)"; then
+        printf "error: invalid window id\n" >&2
+        exit 1
+    fi
+
+    class="$(trim_all "$class")"
+    class="$(split "$class" " " 1)"
+    trim_quotes "$class"
+}
+
+node_is_window() {
+    id=$1
+
+    bspc query -N -n "$id".window &> /dev/null
+}
+
+# sometimes the tabs get a bit "stuck". Reparenting them all back to the
+# same tabbed instance seems to fix it. 
+reparent_all_to_self() {
+    id=$1 #expected to be a tabbed instance
+
+    for childid in $(get_children "$id"); do
+        xdotool windowreparent "$childid" "$id"
+    done
+}
+
+create() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" == "tabbed" ]]; then
+        printf "error: window is a tabbed container\n" >&2
+        exit 1
+    fi
+
+    bspc config -n "$id" border_width 0
+
+    tabbedid=$(tabbed -c -d -k) 
+
+    xdotool windowreparent "$id" "$tabbedid"
+
+    #tabbedid0=$(bspc query -N -n)
+    #tabbed-sub "$tabbedid0" &
+    #tabbed-unsub "$tabbedid0" &
+}
+
+attach() {
+    focusedid=$1
+    otherid=$2
+
+    if [[ -z $focusedid ]]; then
+        printf "error: id of first node not specified\n" >&2
+        exit 1
+    fi
+
+    if [[ -z $otherid ]]; then
+        printf "error: id of second node not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$focusedid"; then
+        printf "error: first node is not a window\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$otherid"; then
+        printf "error: second node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$focusedid")" == "tabbed" ]]; then
+        #detach "$focusedid"
+        #focusedid=$(bspc query -N -n)
+        focusedid=$(head 1 <(get_children "$focusedid"))
+    fi
+
+    if [[ "$(get_class "$otherid")" != "tabbed" ]]; then
+        bspc node -f "$otherid"
+        create "$otherid"
+    else
+        tabbedid=$otherid
+    fi
+
+    #rootid=$(get_root_wid)
+    #xdotool windowreparent "$focusedid" "$rootid"
+
+    bspc config -n "$focusedid" border_width 0
+    xdotool windowreparent "$focusedid" "$tabbedid"
+
+    bspc node -f "$tabbedid"
+
+    reparent_all_to_self "$tabbedid"
+}
+
+merge() {
+    focusedid=$1
+    otherid=$2
+
+    if [[ -z $focusedid ]]; then
+        printf "error: id of first node not specified\n" >&2
+        exit 1
+    fi
+
+    if [[ -z $otherid ]]; then
+        printf "error: id of second node not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$focusedid"; then
+        printf "error: first node is not a window\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$otherid"; then
+        printf "error: second node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$focusedid")" == "tabbed" ]]; then
+        focused_children=$(get_children "$focusedid")
+    else
+        focused_children="$focusedid"
+    fi
+
+    if [[ "$(get_class "$otherid")" != "tabbed" ]]; then
+        bspc node -f "$otherid"
+        create "$otherid"
+    else
+        tabbedid=$otherid
+    fi
+
+    for childid in $focused_children; do
+        bspc config -n "$childid" border_width 0
+        xdotool windowreparent "$childid" "$tabbedid"
+    done
+
+    bspc node -f "$tabbedid"
+
+    reparent_all_to_self "$tabbedid"
+}
+
+detach() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+
+    childid=$(head 1 <(get_children "$id"))
+    rootid=$(get_root_wid)
+
+    xdotool windowreparent "$childid" "$rootid"
+}
+
+explode() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+
+    focused_children=$(get_children "$id")
+    rootid=$(get_root_wid)
+
+    for childid in $focused_children; do
+        xdotool windowreparent "$childid" "$rootid"
+    done
+}
+
+#autoattach() {
+#    id=$1
+#
+#    if [[ -z $id ]]; then
+#        printf "error: id of window not specified\n" >&2
+#        exit 1
+#    fi
+#
+#    if ! node_is_window "$id"; then
+#        printf "error: node is not a window\n" >&2
+#        exit 1
+#    fi
+#
+#    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+#        printf "error: window is not a tabbed container\n" >&2 
+#        exit 1
+#    fi
+#
+#    tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
+#    tabbedunsub_px=$(pgrep -fo "tabbed-unsub $id")
+#
+#    if [[ -z $tabbedsub_px ]]; then
+#        if [[ -z $tabbedunsub_px ]]; then
+#            tabbed-sub "$id" &
+#            tabbed-unsub "$id" &
+#        else
+#            printf "error: subscription process found, but unsubscription \
+#process not found\n" >&2
+#
+#            kill "$tabbedsub_px"
+#
+#            exit 1
+#        fi
+#    else
+#        if [[ -z $tabbedsub_px ]]; then
+#            printf "error: unsubscription process found, but subscription \
+#process not found\n" >&2
+#
+#            kill "$tabbedunsub_px"
+#
+#            exit 1
+#        else
+#            kill "$tabbedsub_px"
+#            kill "$tabbedunsub_px"
+#        fi
+#    fi
+#}
+#
+#autod() {
+#    classes="$*"
+#
+#    if [[ -z $classes ]]; then
+#        printf "error: no class specified\n" >&2
+#        exit 1
+#    fi
+#
+#    while IFS= read -r id; do
+#        sleep 0.1
+#
+#        id="$(split "$id" " " 4)"
+#
+#        bspc query -N -n "$id".tiled &> /dev/null || continue
+#
+#        class="$(get_class "$id" 2> /dev/null)" || continue
+#        focusedid=$(bspc query -N -n) || continue
+#
+#        if [[ "$classes" =~ $class ]]; then
+#            create "$focusedid"
+#        fi
+#    done < <(bspc subscribe node_add)
+#}
+#
+#refreshd() {
+#    while IFS= read -r id; do
+#        bspc query -N -n .local.fullscreen &> /dev/null && continue
+#
+#        id="$(split "$id" " " 3)"
+#        class="$(get_class "$id" 2> /dev/null)" || continue
+#
+#        if [[ "$class" == "tabbed" ]]; then
+#            focusedid=$(bspc query -N -n)
+#
+#            if [[ "$id" != "$focusedid" ]]; then
+#                bspc node -f "$id"
+#                bspc node -f "$focusedid"
+#            fi
+#        fi
+#    done < <(bspc subscribe node_geometry)
+#}
+
+get_command() {
+    case "$1" in
+        create)
+            shift
+            create "$@"
+        ;;
+        attach)
+            shift
+            attach "$@"
+        ;;
+        merge)
+            shift
+            merge "$@"
+        ;;
+        detach)
+            shift
+            detach "$@"
+        ;;
+        explode)
+            shift
+            explode "$@"
+        ;;
+#        autoattach)
+#            shift
+#            autoattach "$@"
+#        ;;
+#        autod)
+#            shift
+#            autod "$@"
+#        ;;
+#        refreshd)
+#            refreshd
+#        ;;
+        printclass)
+            shift
+            get_class "$@"
+        ;;
+        *)
+            usage
+        ;;
+    esac
+}
+
+main() {
+    get_command "$@"
+
+    return 0
+}
+
+main "$@"
