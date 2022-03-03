@@ -7,7 +7,7 @@ install:
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
 	@cp -p tabc $(DESTDIR)$(PREFIX)/bin/tabc
 	@chmod 755 $(DESTDIR)$(PREFIX)/bin/tabc
-	@cp -p tabc $(DESTDIR)$(PREFIX)/bin/tabc-simple
+	@cp -p tabc-simple $(DESTDIR)$(PREFIX)/bin/tabc-simple
 	@chmod 755 $(DESTDIR)$(PREFIX)/bin/tabc-simple
 	@cp -p tabbed-sub $(DESTDIR)$(PREFIX)/bin/tabbed-sub
 	@chmod 755 $(DESTDIR)$(PREFIX)/bin/tabbed-sub
