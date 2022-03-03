@@ -143,6 +143,8 @@ create() {
 
     xdotool windowreparent "$id" "$tabbedid"
 
+    echo "$tabbedid"
+
     #tabbedid0=$(bspc query -N -n)
     #tabbed-sub "$tabbedid0" &
     #tabbed-unsub "$tabbedid0" &
