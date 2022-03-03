@@ -110,7 +110,7 @@ node_is_window() {
 }
 
 # sometimes the tabs get a bit "stuck". Reparenting them all back to the
-# same tabbed instance seems to fix it. 
+# same tabbed instance seems to fix it.
 reparent_all_to_self() {
     id=$1 #expected to be a tabbed instance
 
@@ -139,7 +139,7 @@ create() {
 
     bspc config -n "$id" border_width 0
 
-    tabbedid=$(tabbed -c -d -k) 
+    tabbedid=$(tabbed -c -d -k)
 
     xdotool windowreparent "$id" "$tabbedid"
 
@@ -307,7 +307,7 @@ explode() {
 #    fi
 #
 #    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-#        printf "error: window is not a tabbed container\n" >&2 
+#        printf "error: window is not a tabbed container\n" >&2
 #        exit 1
 #    fi
 #
