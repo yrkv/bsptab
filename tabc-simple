@@ -41,6 +41,9 @@ commands:
                             instances (creates one if needed).
     detach <wid>            detach active window from tabbed container <wid>.
     explode <wid>           remove all windows from tabbed contained <wid>.
+    autoattach <wid>        enable autoattach new windows to tabbed container <wid>.
+    noautoattach <wid>      disable autoattach new windows to tabbed container <wid>.
+    toggleautoattach <wid>  toggle autoattach new windows to tabbed container <wid>.
     printclass <wid>        print class of window <wid>.
 "
 
@@ -147,7 +150,6 @@ create() {
 
     #tabbedid0=$(bspc query -N -n)
     #tabbed-sub "$tabbedid0" &
-    #tabbed-unsub "$tabbedid0" &
 }
 
 attach() {
@@ -295,54 +297,83 @@ explode() {
     done
 }
 
-#autoattach() {
-#    id=$1
-#
-#    if [[ -z $id ]]; then
-#        printf "error: id of window not specified\n" >&2
-#        exit 1
-#    fi
-#
-#    if ! node_is_window "$id"; then
-#        printf "error: node is not a window\n" >&2
-#        exit 1
-#    fi
-#
-#    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-#        printf "error: window is not a tabbed container\n" >&2
-#        exit 1
-#    fi
-#
-#    tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
-#    tabbedunsub_px=$(pgrep -fo "tabbed-unsub $id")
-#
-#    if [[ -z $tabbedsub_px ]]; then
-#        if [[ -z $tabbedunsub_px ]]; then
-#            tabbed-sub "$id" &
-#            tabbed-unsub "$id" &
-#        else
-#            printf "error: subscription process found, but unsubscription \
-#process not found\n" >&2
-#
-#            kill "$tabbedsub_px"
-#
-#            exit 1
-#        fi
-#    else
-#        if [[ -z $tabbedsub_px ]]; then
-#            printf "error: unsubscription process found, but subscription \
-#process not found\n" >&2
-#
-#            kill "$tabbedunsub_px"
-#
-#            exit 1
-#        else
-#            kill "$tabbedsub_px"
-#            kill "$tabbedunsub_px"
-#        fi
-#    fi
-#}
-#
+autoattach() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+
+    tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
+
+    if [[ -z $tabbedsub_px ]]; then
+        tabbed-sub "$id" &
+    fi
+}
+
+noautoattach() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+
+    tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
+
+    if [[ -n $tabbedsub_px ]]; then
+        kill "$tabbedsub_px"
+    fi
+}
+
+toggleautoattach() {
+    id=$1
+
+    if [[ -z $id ]]; then
+        printf "error: id of window not specified\n" >&2
+        exit 1
+    fi
+
+    if ! node_is_window "$id"; then
+        printf "error: node is not a window\n" >&2
+        exit 1
+    fi
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+
+    tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
+
+    if [[ -z $tabbedsub_px ]]; then
+        tabbed-sub "$id" &
+    else
+        kill "$tabbedsub_px"
+    fi
+}
+
 #autod() {
 #    classes="$*"
 #
@@ -407,10 +438,18 @@ get_command() {
             shift
             explode "$@"
         ;;
-#        autoattach)
-#            shift
-#            autoattach "$@"
-#        ;;
+        autoattach)
+            shift
+            autoattach "$@"
+        ;;
+        noautoattach)
+            shift
+            noautoattach "$@"
+        ;;
+        toggleautoattach)
+            shift
+            toggleautoattach "$@"
+        ;;
 #        autod)
 #            shift
 #            autod "$@"
