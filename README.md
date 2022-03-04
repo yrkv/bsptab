@@ -9,38 +9,51 @@ with some changes made to make it fit my use cases better. If I don't make it
 incompatible with the original, I'll probably open a pull request or something eventually.
 
 I wrote my changes in `tabc-simple`, a simplified version of tabc without
-autoattaching or the xdotool key thing.  I made this instead of making
-changes in tabc because it's easier with those features just removed since
+automatic autoattaching or the xdotool key thing.  I made this instead of making
+changes in `tabc` because it's easier with those features just removed since
 working with `tabbed` can be a little buggy. Might think about porting my
 changes over to tabc later.
 
 List of changes made:
- - Remove automatic autoattach. It's a neat feature, but I don't want it, and I'd rather not have to disable it on every new tabbed container or deal with potential buggyness/slowdown from that.
- - Remove the weird xdotool key workaround for tab order. It noticably slows it down and adds jank. This *does* mean that the ordering changes sometimes (i.e. when merging windows), which doesn't really bother me.
- - `merge` combines two tabbed containers together completely.
- - `explode` detaches all windows from a tabbed container.
+  - Disable automatic autoattach. It's a neat feature, but I don't want it, and I'd rather not have to disable it on every new tabbed container or deal with potential buggyness/slowdown from that.
+  - Remove the weird xdotool key workaround for tab order. It noticably slows it down and adds jank. This *does* mean that the ordering changes sometimes (i.e. when merging windows), which doesn't really bother me.
+  - Combine `tabbed-unsub`'s behavior into `tabbed-sub`. `tabbed-unsub` isn't needed at all anymore.
+  - `merge` combines two tabbed containers together completely.
+  - `explode` detaches all windows from a tabbed container.
+  - Replaced `autoattach` with set of functions for better control:
+    - `autoattach`: enable autoattach
+    - `noautoattach`: disable autoattach
+    - `toggleautoattach`: toggle autoattach, just like original `autoattach`
 
 My `sxhkdrc` lines:
 ```
-# create new "T"abbed contained on current window
+# super + t             base chord for all tabbed manipulation
+#   t                   (create) create new tabbed container on focused window
+#   r                   (detach) remove focused window from tabbed container
+#   shift + r           (explode) remove all windows from tabbed container
+#   {h,j,k,l}           (attach) move focused window into target tabbed container
+#   shift + {h,j,k,l}   (merge) merge focused tabbed/window with target tabbed/window
 super + t; t
     tabc-simple create $(bspc query -N -n focused)
-
-# "R"emove current window from tabbed container
 super + t; r
     tabc-simple detach $(bspc query -N -n focused)
-
-# "R"emove all windows from tabbed container (explode)
 super + t; shift + r
     tabc-simple explode $(bspc query -N -n focused)
-
-# attach current window in target tabbed container (or make one if needed)
 super + t; {h,j,k,l}
     tabc-simple attach $(bspc query -N -n focused) $(bspc query -N -n {west,south,north,east})
-
-# merge current tabbed/window with targeted tabbed/window
 super + t; shift + {h,j,k,l}
     tabc-simple merge $(bspc query -N -n focused) $(bspc query -N -n {west,south,north,east})
+
+# spawn terminal into focused tabbed container
+super + t; {super + , } z
+    tabc-simple create $(bspc query -N -n focused); \
+    alacritty --embed $(("$(bspc query -N -n focused)"))
+
+# run rofi, attach run program into focused tabbed container
+super + t; {super + , } space
+    tabc-simple create $(bspc query -N -n focused); \
+    tabbed-sub-once "$(bspc query -N -n focused)" & \
+    rofi -show run
 ```
 
 -----
