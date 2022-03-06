@@ -122,11 +122,11 @@ reparent_all_to_self() {
     done
 }
 
-create() {
+assert_is_window() {
     id=$1
 
     if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
+        printf "error: id of node not specified\n" >&2
         exit 1
     fi
 
@@ -134,51 +134,45 @@ create() {
         printf "error: node is not a window\n" >&2
         exit 1
     fi
+}
+
+assert_is_tabbed() {
+    id=$1
+
+    assert_is_window "$id"
+
+    if [[ "$(get_class "$id")" != "tabbed" ]]; then
+        printf "error: window is not a tabbed container\n" >&2
+        exit 1
+    fi
+}
+
+assert_not_tabbed() {
+    id=$1
+
+    assert_is_window "$id"
 
     if [[ "$(get_class "$id")" == "tabbed" ]]; then
         printf "error: window is a tabbed container\n" >&2
         exit 1
     fi
+}
+
+create() {
+    id=$1
 
     bspc config -n "$id" border_width 0
 
     tabbedid=$(tabbed -c -d -k)
 
     xdotool windowreparent "$id" "$tabbedid"
-
-    echo "$tabbedid"
-
-    #tabbedid0=$(bspc query -N -n)
-    #tabbed-sub "$tabbedid0" &
 }
 
 attach() {
     focusedid=$1
     otherid=$2
 
-    if [[ -z $focusedid ]]; then
-        printf "error: id of first node not specified\n" >&2
-        exit 1
-    fi
-
-    if [[ -z $otherid ]]; then
-        printf "error: id of second node not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$focusedid"; then
-        printf "error: first node is not a window\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$otherid"; then
-        printf "error: second node is not a window\n" >&2
-        exit 1
-    fi
-
     if [[ "$(get_class "$focusedid")" == "tabbed" ]]; then
-        #detach "$focusedid"
-        #focusedid=$(bspc query -N -n)
         focusedid=$(head 1 <(get_children "$focusedid"))
     fi
 
@@ -189,8 +183,6 @@ attach() {
         tabbedid=$otherid
     fi
 
-    #rootid=$(get_root_wid)
-    #xdotool windowreparent "$focusedid" "$rootid"
 
     bspc config -n "$focusedid" border_width 0
     xdotool windowreparent "$focusedid" "$tabbedid"
@@ -203,26 +195,6 @@ attach() {
 merge() {
     focusedid=$1
     otherid=$2
-
-    if [[ -z $focusedid ]]; then
-        printf "error: id of first node not specified\n" >&2
-        exit 1
-    fi
-
-    if [[ -z $otherid ]]; then
-        printf "error: id of second node not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$focusedid"; then
-        printf "error: first node is not a window\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$otherid"; then
-        printf "error: second node is not a window\n" >&2
-        exit 1
-    fi
 
     if [[ "$(get_class "$focusedid")" == "tabbed" ]]; then
         focused_children=$(get_children "$focusedid")
@@ -250,21 +222,6 @@ merge() {
 detach() {
     id=$1
 
-    if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$id"; then
-        printf "error: node is not a window\n" >&2
-        exit 1
-    fi
-
-    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-        printf "error: window is not a tabbed container\n" >&2
-        exit 1
-    fi
-
     childid=$(head 1 <(get_children "$id"))
     rootid=$(get_root_wid)
 
@@ -273,21 +230,6 @@ detach() {
 
 explode() {
     id=$1
-
-    if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$id"; then
-        printf "error: node is not a window\n" >&2
-        exit 1
-    fi
-
-    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-        printf "error: window is not a tabbed container\n" >&2
-        exit 1
-    fi
 
     focused_children=$(get_children "$id")
     rootid=$(get_root_wid)
@@ -300,21 +242,6 @@ explode() {
 autoattach() {
     id=$1
 
-    if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$id"; then
-        printf "error: node is not a window\n" >&2
-        exit 1
-    fi
-
-    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-        printf "error: window is not a tabbed container\n" >&2
-        exit 1
-    fi
-
     tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
 
     if [[ -z $tabbedsub_px ]]; then
@@ -325,21 +252,6 @@ autoattach() {
 noautoattach() {
     id=$1
 
-    if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$id"; then
-        printf "error: node is not a window\n" >&2
-        exit 1
-    fi
-
-    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-        printf "error: window is not a tabbed container\n" >&2
-        exit 1
-    fi
-
     tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
 
     if [[ -n $tabbedsub_px ]]; then
@@ -349,21 +261,6 @@ noautoattach() {
 
 toggleautoattach() {
     id=$1
-
-    if [[ -z $id ]]; then
-        printf "error: id of window not specified\n" >&2
-        exit 1
-    fi
-
-    if ! node_is_window "$id"; then
-        printf "error: node is not a window\n" >&2
-        exit 1
-    fi
-
-    if [[ "$(get_class "$id")" != "tabbed" ]]; then
-        printf "error: window is not a tabbed container\n" >&2
-        exit 1
-    fi
 
     tabbedsub_px=$(pgrep -fo "tabbed-sub $id")
 
@@ -417,38 +314,89 @@ toggleautoattach() {
 #}
 
 get_command() {
+    if [[ "$1" == "-n" ]]; then
+        BSPC_QUERY=true
+        #echo "$@"
+        shift
+    fi
     case "$1" in
         create)
             shift
-            create "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_not_tabbed "$id"
+            create "$id"
         ;;
         attach)
             shift
-            attach "$@"
+            focusedid=$1
+            otherid=$2
+            if $BSPC_QUERY; then
+                focusedid=$(bspc query -N -n "$focusedid")
+                otherid=$(bspc query -N -n "$otherid")
+            fi
+            assert_is_window "$focusedid"
+            assert_is_window "$otherid"
+            attach "$focusedid" "$otherid"
         ;;
         merge)
             shift
-            merge "$@"
+            focusedid=$1
+            otherid=$2
+            if $BSPC_QUERY; then
+                focusedid=$(bspc query -N -n "$focusedid")
+                otherid=$(bspc query -N -n "$otherid")
+            fi
+            assert_is_window "$focusedid"
+            assert_is_window "$otherid"
+            merge "$focusedid" "$otherid"
         ;;
         detach)
             shift
-            detach "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_is_tabbed "$id"
+            detach "$id"
         ;;
         explode)
             shift
-            explode "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_is_tabbed "$id"
+            explode "$id"
         ;;
         autoattach)
             shift
-            autoattach "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_is_tabbed "$id"
+            autoattach "$id"
         ;;
         noautoattach)
             shift
-            noautoattach "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_is_tabbed "$id"
+            noautoattach "$id"
         ;;
         toggleautoattach)
             shift
-            toggleautoattach "$@"
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+            assert_is_tabbed "$id"
+            toggleautoattach "$id"
         ;;
 #        autod)
 #            shift

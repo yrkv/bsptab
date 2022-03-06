@@ -17,6 +17,7 @@ changes over to tabc later.
 List of changes made:
   - Disable automatic autoattach. It's a neat feature, but I don't want it, and I'd rather not have to disable it on every new tabbed container or deal with potential buggyness/slowdown from that.
   - Remove the weird xdotool key workaround for tab order. It noticably slows it down and adds jank. This *does* mean that the ordering changes sometimes (i.e. when merging windows), which doesn't really bother me.
+  - Add `-n` flag to prepend `bspc query -N -n` on <wid> inputs.
   - Combine `tabbed-unsub`'s behavior into `tabbed-sub`. `tabbed-unsub` isn't needed at all anymore.
   - Create `tabbed-sub-once`, which is just like `tabbed-sub`, but it only reacts to the first node_add event and then dies.
   - `merge` combines two tabbed containers together completely.
