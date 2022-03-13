@@ -398,6 +398,22 @@ get_command() {
             assert_is_tabbed "$id"
             toggleautoattach "$id"
         ;;
+        embed)
+            shift
+            id=$1
+            if $BSPC_QUERY; then
+                id=$(bspc query -N -n "$id")
+            fi
+
+            if [[ "$(get_class "$id")" != "tabbed" ]]; then
+                tabc-simple create "$id"
+            fi
+
+            tabbed-sub-once $(bspc query -N -n focused) &
+
+            shift
+            $@
+        ;;
 #        autod)
 #            shift
 #            autod "$@"
